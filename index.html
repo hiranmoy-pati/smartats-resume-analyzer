@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SmartATS by Hiranmoy</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+*{
+    box-sizing:border-box;
+}
+
+body{
+    margin:0;
+    min-height:100vh;
+    font-family:"Segoe UI",sans-serif;
+    background: linear-gradient(135deg,#667eea,#764ba2);
+    display:flex;
+    justify-content:center;
+    align-items:center;
+}
+
+.app{
+    width:620px;
+    background: rgba(255,255,255,0.95);
+    backdrop-filter: blur(12px);
+    border-radius:22px;
+    padding:35px;
+    box-shadow:0 30px 60px rgba(0,0,0,0.3);
+}
+
+.header{
+    text-align:center;
+    margin-bottom:25px;
+}
+
+.header h1{
+    margin:0;
+    font-size:28px;
+    color:#333;
+}
+
+.header span{
+    color:#764ba2;
+    font-weight:700;
+}
+
+input[type=file], textarea{
+    width:100%;
+    padding:14px;
+    margin-top:12px;
+    border-radius:14px;
+    border:1px solid #ddd;
+    font-size:14px;
+}
+
+textarea{
+    resize:none;
+}
+
+button{
+    margin-top:18px;
+    width:100%;
+    padding:15px;
+    border:none;
+    border-radius:16px;
+    font-size:16px;
+    font-weight:600;
+    cursor:pointer;
+    background: linear-gradient(90deg,#667eea,#764ba2);
+    color:#fff;
+    transition:0.3s;
+}
+
+button:hover{
+    transform:translateY(-1px);
+    box-shadow:0 10px 25px rgba(0,0,0,0.2);
+}
+
+.section{
+    margin-top:28px;
+}
+
+.label{
+    font-weight:600;
+    color:#444;
+    margin-bottom:6px;
+}
+
+.progress{
+    width:100%;
+    height:14px;
+    background:#eee;
+    border-radius:20px;
+    overflow:hidden;
+}
+
+.bar{
+    height:100%;
+    width:0%;
+    transition:width 0.6s ease;
+}
+
+.ats-bar{
+    background: linear-gradient(90deg,#43cea2,#185a9d);
+}
+
+.jd-bar{
+    background: linear-gradient(90deg,#f7971e,#ffd200);
+}
+
+.tags{
+    margin-top:8px;
+}
+
+.tag{
+    display:inline-block;
+    padding:6px 14px;
+    border-radius:20px;
+    font-size:13px;
+    margin:6px 6px 0 0;
+}
+
+.found{background:#e0f7ec;color:#1e824c;}
+.missing{background:#fdecea;color:#c0392b;}
+.tip{background:#fff3cd;color:#8a6d00;}
+
+.download{
+    display:block;
+    margin-top:22px;
+    text-align:center;
+    padding:14px;
+    border-radius:16px;
+    background: linear-gradient(90deg,#43cea2,#185a9d);
+    color:white;
+    text-decoration:none;
+    font-weight:600;
+}
+
+canvas{
+    margin-top:30px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="app">
+    <div class="header">
+        <h1>SmartATS <span>by Hiranmoy</span></h1>
+        <p style="color:#666;font-size:14px;">Rule-based ATS Resume Analyzer</p>
+    </div>
+
+    <input type="file" id="resume">
+    <textarea id="jd" rows="5" placeholder="Paste Job Description (optional)"></textarea>
+
+    <button onclick="analyze()">Analyze Resume</button>
+
+    <div id="output"></div>
+    <canvas id="chart"></canvas>
+</div>
+
+<script>
+let chart;
+
+async function analyze(){
+    const file = document.getElementById("resume").files[0];
+    const jd = document.getElementById("jd").value;
+
+    if(!file){ alert("Please upload a resume PDF"); return; }
+
+    const fd = new FormData();
+    fd.append("file",file);
+    fd.append("job_description",jd);
+
+    const res = await fetch("/analyze",{method:"POST",body:fd});
+    const data = await res.json();
+
+    document.getElementById("output").innerHTML = `
+        <div class="section">
+            <div class="label">ATS Score: ${data.ats_score}%</div>
+            <div class="progress">
+                <div class="bar ats-bar" style="width:${data.ats_score}%"></div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="label">JD Match: ${data.jd_match_score}%</div>
+            <div class="progress">
+                <div class="bar jd-bar" style="width:${data.jd_match_score}%"></div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="label">Skills Found</div>
+            <div class="tags">
+                ${data.skills_found.map(s=>`<span class="tag found">${s}</span>`).join("")}
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="label">Missing Skills</div>
+            <div class="tags">
+                ${data.missing_skills.map(s=>`<span class="tag missing">${s}</span>`).join("")}
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="label">Improvement Suggestions</div>
+            <div class="tags">
+                ${data.suggestions.map(s=>`<span class="tag tip">${s}</span>`).join("")}
+            </div>
+        </div>
+
+        <a class="download" href="${data.pdf}" target="_blank">
+            📄 Download ATS Report (PDF)
+        </a>
+    `;
+
+    if(chart) chart.destroy();
+    chart = new Chart(document.getElementById("chart"),{
+        type:"bar",
+        data:{
+            labels:["Skills Found","Missing Skills"],
+            datasets:[{
+                data:[data.skills_found.length,data.missing_skills.length]
+            }]
+        },
+        options:{
+            plugins:{legend:{display:false}},
+            scales:{y:{beginAtZero:true}}
+        }
+    });
+}
+</script>
+
+</body>
+</html>
